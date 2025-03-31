@@ -16,8 +16,12 @@ app.prepare().then(() => {
   // Initialize Socket.IO
   const io = new Server(server, {
     cors: {
-      origin: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-      methods: ["GET", "POST"]
+      origin: [
+        process.env.NEXT_PUBLIC_APP_URL || "http://0.0.0.0:7000",
+        process.env.NEXT_PUBLIC_PRODUCTION_URL || "http://43.205.206.138:7000"
+      ],
+      methods: ["GET", "POST"],
+      credentials: true
     },
     path: '/socket.io/',
     addTrailingSlash: false,
@@ -37,10 +41,12 @@ app.prepare().then(() => {
     });
   });
 
-  const PORT = process.env.PORT || 3000;
-  server.listen(PORT, (err) => {
+  const PORT = process.env.PORT || 7000;
+  const HOST = '0.0.0.0';
+  
+  server.listen(PORT, HOST, (err) => {
     if (err) throw err;
-    console.log(`> Ready on http://localhost:${PORT}`);
+    console.log(`> Ready on http://${HOST}:${PORT}`);
     console.log(`> Socket.IO server running on port ${PORT}`);
   });
 }); 

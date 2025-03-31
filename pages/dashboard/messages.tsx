@@ -65,24 +65,34 @@ export default function Messages() {
           const userEmails = new Set(sortedChats.flatMap((chat: ChatData) => 
             chat.participants.filter((p: string) => p !== session.user?.email)
           ));
+          
+          console.log('Found other participants:', Array.from(userEmails));
 
           const userDetailsPromises = Array.from(userEmails).map(async (email) => {
             try {
+              console.log('Fetching details for:', email);
               const userResponse = await fetch(`/api/user?email=${email}`);
               if (userResponse.ok) {
                 const userData = await userResponse.json();
+                console.log('Received user data:', userData);
                 return [email, userData] as [string, UserData];
+              } else {
+                console.error('Failed to fetch user data for:', email);
               }
             } catch (error) {
-              console.error('Error fetching user details:', error);
+              console.error('Error fetching user details for', email, ':', error);
             }
             return null;
           });
 
           const userDetails = await Promise.all(userDetailsPromises);
+          console.log('All user details:', userDetails);
+          
           const userMap = Object.fromEntries(
             userDetails.filter((entry): entry is [string, UserData] => entry !== null)
           );
+          console.log('Final user map:', userMap);
+          
           setChatUsers(userMap);
         }
       } catch (error) {
@@ -98,8 +108,14 @@ export default function Messages() {
   }, [session?.user?.email]);
 
   const getOtherParticipant = (chat: ChatData) => {
-    const email = chat.participants.find(p => p !== session?.user?.email) || '';
-    return chatUsers[email] || { email, name: email };
+    console.log('Current user email:', session?.user?.email);
+    console.log('Chat participants:', chat.participants);
+    const otherParticipantEmail = chat.participants.find(p => p !== session?.user?.email) || '';
+    console.log('Other participant email:', otherParticipantEmail);
+    console.log('Chat users map:', chatUsers);
+    const otherParticipant = chatUsers[otherParticipantEmail] || { email: otherParticipantEmail, name: otherParticipantEmail };
+    console.log('Returning other participant:', otherParticipant);
+    return otherParticipant;
   };
 
   const getLastMessage = (chat: ChatData) => {
@@ -170,29 +186,27 @@ export default function Messages() {
                 <div
                   key={chat._id}
                   onClick={() => handleChatSelect(chat)}
-                  className={`p-4 border-b border-purple-900/20 cursor-pointer hover:bg-purple-900/20 transition-colors ${
+                  className={`p-4 border-b border-purple-900/20 cursor-pointer hover:bg-purple-900/20 transition-colors flex items-center gap-3 ${
                     selectedChat?._id === chat._id ? 'bg-purple-900/30' : ''
                   }`}
                 >
-                  <div className="flex items-center space-x-3">
-                    <Avatar 
-                      name={otherParticipant.name} 
-                      image={otherParticipant.profileImage}
-                      size="md"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-start">
-                        <h3 className="text-sm font-medium text-purple-200 truncate">
-                          {otherParticipant.name}
-                        </h3>
-                        <span className="text-xs text-purple-400">
-                          {formatTime(getLastMessageTime(chat))}
-                        </span>
-                      </div>
-                      <p className="text-sm text-purple-300/70 truncate">
-                        {getLastMessage(chat)}
-                      </p>
+                  <Avatar 
+                    name={otherParticipant.name} 
+                    image={otherParticipant.profileImage}
+                    size="md"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start">
+                      <h3 className="text-sm font-medium text-purple-200 truncate">
+                        {otherParticipant.name}
+                      </h3>
+                      <span className="text-xs text-purple-400">
+                        {formatTime(getLastMessageTime(chat))}
+                      </span>
                     </div>
+                    <p className="text-sm text-purple-300/70 truncate">
+                      {getLastMessage(chat)}
+                    </p>
                   </div>
                 </div>
               );
