@@ -47,6 +47,14 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       );
     });
 
+    socket.on('eventRsvpUpdated', ({ eventId, rsvps }) => {
+      setEvents(prevEvents =>
+        prevEvents.map(event =>
+          event._id === eventId ? { ...event, rsvps } : event
+        )
+      );
+    });
+
     return () => {
       socket.disconnect();
     };
@@ -87,34 +95,29 @@ export function EventsProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update RSVP');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update RSVP');
       }
 
-      // Update the local state immediately
+      const data = await response.json();
+
+      // Update the local state with the server response
       setEvents(prevEvents => 
         prevEvents.map(event => {
-          if (event._id === eventId && session?.user?.email) {
+          if (event._id === eventId) {
             return {
               ...event,
-              rsvps: {
-                ...event.rsvps,
-                [session.user.email]: {
-                  status,
-                  notes: notes || '',
-                  user: {
-                    _id: session.user.email,
-                    name: session.user.name || '',
-                    email: session.user.email,
-                    profileImage: session.user.image || undefined
-                  },
-                  updatedAt: new Date().toISOString()
-                }
-              }
+              rsvps: data.rsvps
             };
           }
           return event;
         })
       );
+
+      // Emit socket event to notify other users
+      if (socket) {
+        socket.emit('eventRsvpUpdated', { eventId, rsvps: data.rsvps });
+      }
 
       setError(null);
     } catch (err) {

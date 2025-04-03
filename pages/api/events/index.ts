@@ -1,88 +1,176 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import clientPromise from '@/lib/mongodb';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
+import clientPromise from '../../../lib/mongodb';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (!['GET', 'POST'].includes(req.method || '')) {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
   try {
-    // Verify authentication using NextAuth session
+    // Use getServerSession instead of getSession for API routes
     const session = await getServerSession(req, res, authOptions);
+    
     if (!session?.user?.email) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return res.status(401).json({ message: 'Unauthorized - Please sign in' });
     }
 
     const client = await clientPromise;
     const db = client.db();
 
-    if (req.method === 'GET') {
-      // Get all events, sorted by date
-      const events = await db.collection('events')
-        .find({})
-        .sort({ date: 1 })
-        .toArray();
+    // Check if user exists and get their type
+    const user = await db.collection('users').findOne(
+      { email: session.user.email },
+      { projection: { userType: 1 } }
+    );
 
-      // Transform the events to ensure consistent format
-      const formattedEvents = events.map(event => ({
-        _id: event._id.toString(),
-        title: event.title,
-        description: event.description,
-        date: event.date,
-        location: event.location,
-        maxAttendees: event.maxAttendees || event.maxParticipants,
-        createdBy: event.createdBy,
-        createdAt: event.createdAt,
-        updatedAt: event.updatedAt || event.createdAt,
-        rsvps: event.rsvps || {},
-        interests: event.interests || [],
-      }));
-
-      return res.status(200).json(formattedEvents);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
     }
 
     if (req.method === 'POST') {
-      const { title, description, date, location, maxParticipants, interests } = req.body;
-
-      // Validate required fields
-      if (!title || !date || !location || !maxParticipants) {
-        return res.status(400).json({ error: 'Missing required fields' });
+      if (user.userType !== 'host') {
+        return res.status(403).json({ message: 'Only hosts can create events' });
       }
 
-      // Create the event
+      const {
+        title,
+        description,
+        datetime,
+        location,
+        capacity,
+        interests,
+        isPrivate
+      } = req.body;
+
+      // Validate required fields
+      if (!title || !description || !datetime || !location || !capacity) {
+        return res.status(400).json({ message: 'Missing required fields' });
+      }
+
       const event = {
         title,
         description,
-        date,
+        date: new Date(datetime),
         location,
-        maxAttendees: parseInt(maxParticipants),
-        maxParticipants: parseInt(maxParticipants), // Keep for backward compatibility
-        createdBy: {
-          email: session.user.email,
-          name: session.user.name || '',
-        },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        rsvps: {},
+        capacity: parseInt(capacity),
         interests: interests || [],
+        isPrivate: Boolean(isPrivate),
+        hostId: session.user.email,
+        hostName: session.user.name,
+        attendees: [session.user.email],
+        rsvps: {
+          [session.user.email]: {
+            status: 'going',
+            updatedAt: new Date()
+          }
+        },
+        status: 'upcoming',
+        matchesRevealed: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
       };
 
       const result = await db.collection('events').insertOne(event);
 
-      if (!result.insertedId) {
-        throw new Error('Failed to create event');
-      }
-
-      // Return the created event
       return res.status(201).json({
-        ...event,
-        _id: result.insertedId.toString(),
+        message: 'Event created successfully',
+        eventId: result.insertedId
       });
     }
+
+    if (req.method === 'GET') {
+      const events = await db.collection('events')
+        .aggregate([
+          {
+            $match: {
+              $or: [
+                { isPrivate: false },
+                { hostId: session.user.email },
+                { attendees: session.user.email }
+              ]
+            }
+          },
+          {
+            $lookup: {
+              from: 'users',
+              localField: 'hostId',
+              foreignField: 'email',
+              as: 'hostDetails'
+            }
+          },
+          {
+            $lookup: {
+              from: 'rsvps',
+              let: { eventId: '$_id' },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: { $eq: ['$eventId', '$$eventId'] }
+                  }
+                }
+              ],
+              as: 'rsvpDetails'
+            }
+          },
+          {
+            $unwind: '$hostDetails'
+          },
+          {
+            $addFields: {
+              rsvps: {
+                $reduce: {
+                  input: '$rsvpDetails',
+                  initialValue: {},
+                  in: {
+                    $mergeObjects: [
+                      '$$value',
+                      {
+                        $arrayToObject: [[
+                          {
+                            k: '$$this.userId',
+                            v: {
+                              status: '$$this.status',
+                              notes: '$$this.notes',
+                              updatedAt: '$$this.updatedAt'
+                            }
+                          }
+                        ]]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          {
+            $project: {
+              _id: 1,
+              title: 1,
+              description: 1,
+              date: 1,
+              location: 1,
+              capacity: 1,
+              interests: 1,
+              isPrivate: 1,
+              attendees: 1,
+              rsvps: 1,
+              status: 1,
+              matchesRevealed: 1,
+              host: {
+                name: '$hostDetails.name',
+                email: '$hostDetails.email'
+              }
+            }
+          },
+          {
+            $sort: { date: 1 }
+          }
+        ]).toArray();
+
+      return res.status(200).json(events);
+    }
+
+    return res.status(405).json({ message: 'Method not allowed' });
   } catch (error) {
-    console.error('Events API Error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('Error in events API:', error);
+    return res.status(500).json({ message: 'Internal server error' });
   }
 } 

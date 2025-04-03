@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useUser } from '../../components/UserContext';
-import { Avatar } from '../../components/Avatar';
-import { Chat } from '../../components/Chat';
-import { Sidebar } from '../../components/Sidebar';
+import { useUser } from '../../../contexts/UserContext';
+import { Avatar } from '../../../components/Avatar';
+import { Chat } from '../../../components/Chat';
+import { Sidebar } from '../../../components/Sidebar';
 import { useSession } from 'next-auth/react';
 import Head from 'next/head';
 
@@ -43,15 +43,6 @@ export default function Messages() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const getOtherParticipant = (chat: ChatData) => {
-    const otherParticipantEmail = chat.participants.find(p => p !== session?.user?.email) || '';
-    return chatUsers[otherParticipantEmail] || { 
-      _id: '', 
-      email: otherParticipantEmail,
-      name: otherParticipantEmail.split('@')[0]
-    };
-  };
-
   useEffect(() => {
     const loadChats = async () => {
       if (!session?.user?.email) return;
@@ -61,6 +52,8 @@ export default function Messages() {
         const response = await fetch(`/api/chat?userId=${session.user.email}`);
         if (response.ok) {
           const data = await response.json();
+          console.log('Loaded chats:', data);
+          
           // Sort chats by latest message
           const sortedChats = data.sort((a: ChatData, b: ChatData) => {
             const aLastMessage = a.messages[a.messages.length - 1];
@@ -71,35 +64,37 @@ export default function Messages() {
           setChats(sortedChats);
 
           // Load user details for all participants
-          const userEmails = new Set<string>(sortedChats.flatMap((chat: ChatData) => 
+          const userEmails = new Set(sortedChats.flatMap((chat: ChatData) => 
             chat.participants.filter((p: string) => p !== session.user?.email)
           ));
+          
+          console.log('Found other participants:', Array.from(userEmails));
 
           const userDetailsPromises = Array.from(userEmails).map(async (email) => {
             try {
+              console.log('Fetching details for:', email);
               const userResponse = await fetch(`/api/user?email=${email}`);
               if (userResponse.ok) {
                 const userData = await userResponse.json();
+                console.log('Received user data:', userData);
                 return [email, userData] as [string, UserData];
+              } else {
+                console.error('Failed to fetch user data for:', email);
               }
-              console.error('Failed to fetch user data for:', email);
-              return [email, { 
-                _id: '', 
-                email: email,
-                name: email.split('@')[0]
-              }] as [string, UserData];
             } catch (error) {
               console.error('Error fetching user details for', email, ':', error);
-              return [email, { 
-                _id: '', 
-                email: email,
-                name: email.split('@')[0]
-              }] as [string, UserData];
             }
+            return null;
           });
 
           const userDetails = await Promise.all(userDetailsPromises);
-          const userMap = Object.fromEntries(userDetails);
+          console.log('All user details:', userDetails);
+          
+          const userMap = Object.fromEntries(
+            userDetails.filter((entry): entry is [string, UserData] => entry !== null)
+          );
+          console.log('Final user map:', userMap);
+          
           setChatUsers(userMap);
         }
       } catch (error) {
@@ -113,6 +108,17 @@ export default function Messages() {
       loadChats();
     }
   }, [session?.user?.email]);
+
+  const getOtherParticipant = (chat: ChatData) => {
+    console.log('Current user email:', session?.user?.email);
+    console.log('Chat participants:', chat.participants);
+    const otherParticipantEmail = chat.participants.find(p => p !== session?.user?.email) || '';
+    console.log('Other participant email:', otherParticipantEmail);
+    console.log('Chat users map:', chatUsers);
+    const otherParticipant = chatUsers[otherParticipantEmail] || { email: otherParticipantEmail, name: otherParticipantEmail };
+    console.log('Returning other participant:', otherParticipant);
+    return otherParticipant;
+  };
 
   const getLastMessage = (chat: ChatData) => {
     if (chat.messages.length === 0) return 'No messages yet';
@@ -178,7 +184,6 @@ export default function Messages() {
           <div className="overflow-y-auto h-[calc(100vh-5rem)]">
             {chats.map((chat) => {
               const otherParticipant = getOtherParticipant(chat);
-              const lastMessage = chat.messages[chat.messages.length - 1];
               return (
                 <div
                   key={chat._id}
@@ -202,7 +207,7 @@ export default function Messages() {
                       </span>
                     </div>
                     <p className="text-sm text-purple-300/70 truncate">
-                      {lastMessage ? lastMessage.content : 'No messages yet'}
+                      {getLastMessage(chat)}
                     </p>
                   </div>
                 </div>

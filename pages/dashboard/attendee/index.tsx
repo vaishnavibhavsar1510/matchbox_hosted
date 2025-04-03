@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
-import { useUser } from '../../components/UserContext';
-import { DigitalWingmate } from '../../components/DigitalWingmate';
-import { RsvpModal } from '../../components/RsvpModal';
-import { Sidebar } from '../../components/Sidebar';
-import { HamburgerButton } from '../../components/HamburgerButton';
-import { useEvents } from '../../components/EventsContext';
-import { Chat } from '../../components/Chat';
-import { Event } from '../../types/event';
-import Image from 'next/image';
+import { useUser } from '../../../components/UserContext';
+import { DigitalWingmate } from '../../../components/DigitalWingmate';
+import { RsvpModal } from '../../../components/RsvpModal';
+import { Sidebar } from '../../../components/Sidebar';
+import { HamburgerButton } from '../../../components/HamburgerButton';
+import { useEvents } from '../../../components/EventsContext';
+import { Chat } from '../../../components/Chat';
+import { Event } from '../../../types/event';
 import Head from 'next/head';
 
 interface Match {
@@ -28,7 +27,7 @@ function EventCard({ event, onRsvp }: { event: Event; onRsvp: (event: Event) => 
   const { userData } = useUser();
   const { data: session } = useSession();
 
-  const userRsvp = event.rsvps[session?.user?.email || '']?.status;
+  const userRsvp = event.rsvps?.[session?.user?.email || '']?.status;
 
   const getButtonStyle = (status: string | undefined) => {
     switch (status) {
@@ -83,7 +82,7 @@ function EventCard({ event, onRsvp }: { event: Event; onRsvp: (event: Event) => 
 
       <div className="flex justify-between items-center">
         <div className="text-sm text-purple-200/70">
-          <span>{Object.values(event.rsvps).filter(r => r.status === 'going').length} attending</span>
+          <span>{Object.values(event.rsvps).filter(rsvp => rsvp.status === 'going').length} attending</span>
         </div>
         <div className="flex space-x-2">
           <button
@@ -141,33 +140,6 @@ export default function Dashboard() {
     }
   }, [session?.user?.email, status]);
 
-  useEffect(() => {
-    const checkUserTypeAndRedirect = async () => {
-      try {
-        const response = await fetch('/api/user/type');
-        if (response.ok) {
-          const { userType } = await response.json();
-          
-          // Redirect based on user type
-          if (userType === 'host') {
-            router.push('/dashboard/host');
-          } else if (userType === 'attendee') {
-            router.push('/dashboard/attendee');
-          } else {
-            // If user type not set, redirect to type selection
-            router.push('/onboarding/user-type');
-          }
-        }
-      } catch (error) {
-        console.error('Error checking user type:', error);
-      }
-    };
-
-    if (session) {
-      checkUserTypeAndRedirect();
-    }
-  }, [session, router]);
-
   if (status === 'loading' || userLoading) {
     return (
       <div className="min-h-screen bg-[#0A0F29] flex items-center justify-center">
@@ -196,26 +168,6 @@ export default function Dashboard() {
 
     try {
       await updateRSVP(selectedEvent._id, details.status, details.notes);
-      
-      // Update the local events state to reflect the new RSVP status
-      const updatedEvents = events.map(event => {
-        if (event._id === selectedEvent._id && session?.user?.email) {
-          return {
-            ...event,
-            rsvps: {
-              ...event.rsvps,
-              [session.user.email]: {
-                status: details.status,
-                notes: details.notes || '',
-                updatedAt: new Date().toISOString()
-              }
-            }
-          };
-        }
-        return event;
-      });
-      
-      // Close the modal
       setIsRsvpModalOpen(false);
       setSelectedEvent(null);
     } catch (error) {
@@ -225,32 +177,6 @@ export default function Dashboard() {
 
   const handleStartChat = (match: Match) => {
     setActiveChat(match);
-  };
-
-  const getRsvpStatusColor = (status?: 'going' | 'maybe' | 'not_going') => {
-    switch (status) {
-      case 'going':
-        return 'bg-green-100 text-green-800';
-      case 'maybe':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'not_going':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-blue-600 text-white hover:bg-blue-700';
-    }
-  };
-
-  const getRsvpStatusText = (status?: 'going' | 'maybe' | 'not_going') => {
-    switch (status) {
-      case 'going':
-        return 'Going';
-      case 'maybe':
-        return 'Maybe';
-      case 'not_going':
-        return 'Not Going';
-      default:
-        return 'RSVP';
-    }
   };
 
   return (
@@ -402,12 +328,6 @@ export default function Dashboard() {
               <div className="bg-[#1E1B2E] rounded-lg shadow-lg p-6 border border-purple-900/20">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-semibold text-white">Upcoming Events</h2>
-                  <button
-                    onClick={() => router.push('/dashboard/events/host')}
-                    className="px-4 py-2 bg-gradient-to-r from-purple-700 via-violet-800 to-indigo-900 text-white rounded-lg hover:shadow-lg hover:shadow-purple-900/30 transition-all duration-300 text-sm font-medium"
-                  >
-                    Host Event
-                  </button>
                 </div>
                 {eventsLoading ? (
                   <div className="flex items-center justify-center py-8">
@@ -448,7 +368,7 @@ export default function Dashboard() {
                 setSelectedEvent(null);
               }}
               onConfirm={handleRsvpConfirm}
-              currentStatus={selectedEvent.rsvpStatus}
+              currentStatus={selectedEvent.rsvps?.[session?.user?.email || '']?.status}
             />
           )}
         </main>

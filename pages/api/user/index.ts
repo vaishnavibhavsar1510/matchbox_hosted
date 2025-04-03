@@ -21,7 +21,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (req.method === 'GET') {
       try {
-        const user = await users.findOne({ email: session.user.email });
+        // If email query param is provided, fetch that user's data
+        const targetEmail = req.query.email as string || session.user.email;
+        const user = await users.findOne({ email: targetEmail });
 
         if (!user) {
           return res.status(404).json({ error: 'User not found' });

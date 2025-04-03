@@ -2,16 +2,56 @@ import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../components/AuthContext';
+import { useUser } from '../components/UserContext';
 import { Avatar } from './Avatar';
 import { useState } from 'react';
 
 const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: '📊', badge: null },
-  { name: 'Host Event', href: '/dashboard/events/host', icon: '🎯', badge: 'New' },
-  { name: 'Profile', href: '/dashboard/profile', icon: '👤', badge: null },
-  { name: 'Messages', href: '/dashboard/messages', icon: '💬', badge: '3' },
-  { name: 'Events', href: '/dashboard/events', icon: '🎉', badge: null },
-  { name: 'Settings', href: '/dashboard/settings', icon: '⚙️', badge: null },
+  {
+    name: 'Dashboard',
+    href: '/dashboard',
+    icon: (active: boolean) => (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+      </svg>
+    )
+  },
+  {
+    name: 'Events',
+    href: '/dashboard/events',
+    icon: (active: boolean) => (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    )
+  },
+  {
+    name: 'Matches',
+    href: '/dashboard/matches',
+    icon: (active: boolean) => (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+      </svg>
+    )
+  },
+  {
+    name: 'Messages',
+    href: '/dashboard/chat',
+    icon: (active: boolean) => (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+      </svg>
+    )
+  },
+  {
+    name: 'Profile',
+    href: '/dashboard/profile',
+    icon: (active: boolean) => (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+      </svg>
+    )
+  }
 ];
 
 interface SidebarProps {
@@ -21,7 +61,8 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
+  const { userData } = useUser();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -93,14 +134,14 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group ${
                     isActive
                       ? 'bg-gradient-to-r from-purple-700 via-violet-800 to-indigo-900 text-white'
-                      : 'text-purple-200 hover:bg-purple-900/20'
+                      : 'text-purple-200/70 hover:text-purple-200 hover:bg-purple-900/20'
                   }`}
                   onClick={() => {
                     onClose();
                   }}
                 >
-                  <span className={`${isActive ? 'text-white' : 'text-purple-300 group-hover:text-purple-200'}`}>
-                    {item.icon}
+                  <span className={`${isActive ? 'text-white' : 'text-purple-200/70 group-hover:text-purple-200'}`}>
+                    {item.icon(isActive)}
                   </span>
                   <span className="font-medium">{item.name}</span>
                 </Link>
@@ -111,13 +152,13 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           <div className="p-4 border-t border-indigo-950/20 bg-gradient-to-t from-indigo-950/50 to-transparent backdrop-blur-xl">
             <div className="flex items-center p-2 rounded-2xl transition-colors hover:bg-indigo-500/5 group">
               <Avatar
-                name={user?.name || 'User'}
-                image={user?.profileImage}
+                name={userData?.name || 'User'}
+                image={userData?.profileImage}
                 size="sm"
               />
               <div className="ml-3 flex-1">
                 <p className="text-sm font-medium text-slate-300 truncate group-hover:text-white transition-colors">
-                  {user?.name}
+                  {userData?.name}
                 </p>
                 <button
                   onClick={() => {

@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import clientPromise from '../../../utils/mongodb';
+import { getSession } from 'next-auth/react';
+import clientPromise from '../../../lib/mongodb';
 import { Server as SocketIOServer } from 'socket.io';
 import { Server as NetServer } from 'http';
 import { NextApiResponseServerIO } from '../../../types/next';
@@ -23,9 +24,42 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponseServerIO
 ) {
+  const session = await getSession({ req });
+
+  if (!session) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const userId = req.query.userId as string;
+  if (!userId) {
+    return res.status(400).json({ error: 'userId is required' });
+  }
+
   const client = await clientPromise;
-  const db = client.db("matchbox");
-  const chats = db.collection<Chat>("chats");
+  const db = client.db();
+
+  if (req.method === 'GET') {
+    try {
+      console.log('Fetching chats for user:', userId);
+      
+      // Find all chats where the user is a participant
+      const chats = await db.collection('chats')
+        .find({
+          participants: userId
+        })
+        .sort({ 'messages.timestamp': -1, createdAt: -1 })
+        .toArray();
+
+      console.log('Found chats:', chats);
+      return res.json(chats);
+    } catch (error) {
+      console.error('Database Error:', error);
+      return res.status(500).json({ 
+        error: 'Error fetching chats',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
 
   if (!res.socket.server.io) {
     console.log('Initializing Socket.IO server...');
@@ -62,7 +96,7 @@ export default async function handler(
           };
 
           // Store message in database
-          const result = await chats.updateOne(
+          const result = await db.collection<Chat>("chats").updateOne(
             { _id: new ObjectId(chatId) },
             { $push: { messages: newMessage } }
           );
@@ -92,7 +126,7 @@ export default async function handler(
         const sender = participants[0]; // The first participant is the sender
         
         // Create new chat or get existing one
-        let chat = await chats.findOne({
+        let chat = await db.collection<Chat>("chats").findOne({
           participants: { $all: participants },
         });
 
@@ -106,7 +140,7 @@ export default async function handler(
               timestamp: new Date(),
             };
 
-            await chats.updateOne(
+            await db.collection<Chat>("chats").updateOne(
               { _id: chat._id },
               { 
                 $push: { messages: newMessage },
@@ -115,7 +149,7 @@ export default async function handler(
             );
 
             // Get updated chat
-            const updatedChat = await chats.findOne({ _id: chat._id });
+            const updatedChat = await db.collection<Chat>("chats").findOne({ _id: chat._id });
             if (!updatedChat) {
               throw new Error('Failed to retrieve updated chat');
             }
@@ -143,7 +177,7 @@ export default async function handler(
           createdAt: new Date(),
         };
 
-        const result = await chats.insertOne(newChat as Chat);
+        const result = await db.collection<Chat>("chats").insertOne(newChat as Chat);
         const createdChat = { ...newChat, _id: result.insertedId };
 
         // If message was included, broadcast it through socket
@@ -155,32 +189,6 @@ export default async function handler(
       } catch (error) {
         console.error('Error creating chat:', error);
         res.status(500).json({ error: 'Error creating chat' });
-      }
-      break;
-
-    case 'GET':
-      try {
-        const { userId } = req.query;
-        if (!userId) {
-          return res.status(400).json({ error: 'User ID is required' });
-        }
-
-        const userChats = await chats.find({
-          participants: userId,
-        }).toArray();
-
-        // Sort messages by timestamp for each chat
-        const sortedChats = userChats.map(chat => ({
-          ...chat,
-          messages: chat.messages?.sort((a, b) => 
-            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-          ) || []
-        }));
-
-        res.status(200).json(sortedChats);
-      } catch (error) {
-        console.error('Error fetching chats:', error);
-        res.status(500).json({ error: 'Error fetching chats' });
       }
       break;
 

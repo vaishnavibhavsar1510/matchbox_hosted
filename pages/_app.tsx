@@ -7,6 +7,7 @@ import { EventsProvider } from '../components/EventsContext';
 import '../styles/globals.css';
 import { UserProvider } from '../components/UserContext';
 import { SessionProvider } from 'next-auth/react';
+import { ChatProvider } from '@/contexts/ChatContext';
 
 export type NextPageWithLayout<P = {}, IP = P> = NextPage<P, IP> & {
   getLayout?: (page: ReactElement) => ReactNode;
@@ -25,7 +26,9 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }: AppPropsWith
       <UserProvider>
         <AuthProvider>
           <EventsProvider>
-            {getLayout(<Component {...pageProps} />)}
+            <ChatProvider>
+              {getLayout(<Component {...pageProps} />)}
+            </ChatProvider>
           </EventsProvider>
         </AuthProvider>
       </UserProvider>

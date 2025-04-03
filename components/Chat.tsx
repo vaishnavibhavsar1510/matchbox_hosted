@@ -158,17 +158,11 @@ export const Chat: React.FC<ChatProps> = ({ recipient, onClose, isFloating = tru
       {/* Chat Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-purple-900/30 via-violet-800/30 to-indigo-900/30 border-b border-purple-800/30">
         <div className="flex items-center gap-3">
-          {recipient.profileImage ? (
-            <img
-              src={recipient.profileImage}
-              alt={recipient.name}
-              className="w-8 h-8 rounded-full object-cover shadow-lg ring-2 ring-purple-500/30 ring-offset-2 ring-offset-[#1E1B2E]"
-            />
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-700 to-indigo-800 flex items-center justify-center text-white text-sm font-medium shadow-lg ring-2 ring-purple-500/30 ring-offset-2 ring-offset-[#1E1B2E]">
-              {recipient.name.charAt(0)}
-            </div>
-          )}
+          <Avatar 
+            name={recipient.name} 
+            image={recipient.profileImage}
+            size="md"
+          />
           <div>
             <h3 className="font-medium text-purple-200">{recipient.name}</h3>
             <span className="text-xs text-purple-200/70">Online</span>

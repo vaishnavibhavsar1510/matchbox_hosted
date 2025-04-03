@@ -22,40 +22,62 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    if (!['going', 'maybe', 'not-going'].includes(status)) {
+    if (!['going', 'maybe', 'not_going'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
     const client = await clientPromise;
     const db = client.db();
 
-    // Update or create RSVP
-    const result = await db.collection('events').updateOne(
-      { _id: new ObjectId(eventId) },
+    // Create or update RSVP in the rsvps collection
+    const rsvpData = {
+      eventId: new ObjectId(eventId),
+      userId: session.user.email,
+      status,
+      notes: notes || '',
+      updatedAt: new Date(),
+      __v: 0,
+      createdAt: new Date() // This will be overwritten if the document already exists
+    };
+
+    // Try to update existing RSVP first
+    const result = await db.collection('rsvps').updateOne(
+      { 
+        eventId: new ObjectId(eventId),
+        userId: session.user.email
+      },
       {
         $set: {
-          [`rsvps.${session.user.email}`]: {
-            status,
-            notes: notes || '',
-            updatedAt: new Date(),
-          },
+          status,
+          notes: notes || '',
+          updatedAt: new Date()
         },
-      }
+        $setOnInsert: {
+          createdAt: new Date(),
+          __v: 0
+        }
+      },
+      { upsert: true }
     );
 
-    if (result.matchedCount === 0) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
+    // Get all RSVPs for this event
+    const eventRsvps = await db.collection('rsvps')
+      .find({ eventId: new ObjectId(eventId) })
+      .toArray();
 
-    // Get updated event data
-    const updatedEvent = await db.collection('events').findOne(
-      { _id: new ObjectId(eventId) },
-      { projection: { rsvps: 1 } }
-    );
+    // Format RSVPs as a map for the frontend
+    const rsvpsMap = eventRsvps.reduce<Record<string, { status: string; notes: string; updatedAt: Date }>>((acc, rsvp) => {
+      acc[rsvp.userId] = {
+        status: rsvp.status,
+        notes: rsvp.notes,
+        updatedAt: rsvp.updatedAt
+      };
+      return acc;
+    }, {});
 
     return res.status(200).json({ 
       message: 'RSVP updated successfully',
-      rsvps: updatedEvent?.rsvps || {} 
+      rsvps: rsvpsMap
     });
   } catch (error) {
     console.error('RSVP Error:', error);

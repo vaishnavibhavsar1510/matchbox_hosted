@@ -1,31 +1,31 @@
 import React, { useEffect, useState } from 'react';
-import { useUser } from '../../components/UserContext';
-import { Avatar } from '../../components/Avatar';
-import { Chat } from '../../components/Chat';
-import { Sidebar } from '../../components/Sidebar';
+import { useUser } from '../../../contexts/UserContext';
+import { Avatar } from '../../../components/Avatar';
+import { Chat as ChatComponent } from '../../../components/Chat';
+import { Sidebar } from '../../../components/Sidebar';
 import { useSession } from 'next-auth/react';
 import Head from 'next/head';
 
-interface Message {
+interface Participant {
   _id: string;
-  sender: string;
-  content: string;
-  timestamp: Date;
-}
-
-interface ChatData {
-  _id: string;
-  participants: string[];
-  messages: Message[];
-  createdAt: Date;
-  updatedAt?: Date;
-}
-
-interface UserData {
-  _id: string;
-  name: string;
   email: string;
+  name: string;
   profileImage?: string;
+}
+
+interface Message {
+  id: string;
+  content: string;
+  sender: Participant;
+  timestamp: string;
+}
+
+interface Chat {
+  id: string;
+  participants: Participant[];
+  lastMessage?: Message;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export default function Messages() {
@@ -36,21 +36,12 @@ export default function Messages() {
     },
   });
   const { userData } = useUser();
-  const [chats, setChats] = useState<ChatData[]>([]);
-  const [selectedChat, setSelectedChat] = useState<ChatData | null>(null);
-  const [selectedRecipient, setSelectedRecipient] = useState<UserData | null>(null);
-  const [chatUsers, setChatUsers] = useState<Record<string, UserData>>({});
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
+  const [selectedRecipient, setSelectedRecipient] = useState<Participant | null>(null);
+  const [chatUsers, setChatUsers] = useState<Record<string, Participant>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  const getOtherParticipant = (chat: ChatData) => {
-    const otherParticipantEmail = chat.participants.find(p => p !== session?.user?.email) || '';
-    return chatUsers[otherParticipantEmail] || { 
-      _id: '', 
-      email: otherParticipantEmail,
-      name: otherParticipantEmail.split('@')[0]
-    };
-  };
 
   useEffect(() => {
     const loadChats = async () => {
@@ -58,48 +49,27 @@ export default function Messages() {
 
       try {
         setIsLoading(true);
-        const response = await fetch(`/api/chat?userId=${session.user.email}`);
+        const response = await fetch('/api/chats');
         if (response.ok) {
           const data = await response.json();
-          // Sort chats by latest message
-          const sortedChats = data.sort((a: ChatData, b: ChatData) => {
-            const aLastMessage = a.messages[a.messages.length - 1];
-            const bLastMessage = b.messages[b.messages.length - 1];
-            return new Date(bLastMessage?.timestamp || b.createdAt).getTime() -
-                   new Date(aLastMessage?.timestamp || a.createdAt).getTime();
+          // Sort chats by latest message timestamp
+          const sortedChats = data.sort((a: Chat, b: Chat) => {
+            const aTime = a.lastMessage?.timestamp || a.updatedAt;
+            const bTime = b.lastMessage?.timestamp || b.updatedAt;
+            return new Date(bTime).getTime() - new Date(aTime).getTime();
           });
           setChats(sortedChats);
 
-          // Load user details for all participants
-          const userEmails = new Set<string>(sortedChats.flatMap((chat: ChatData) => 
-            chat.participants.filter((p: string) => p !== session.user?.email)
-          ));
-
-          const userDetailsPromises = Array.from(userEmails).map(async (email) => {
-            try {
-              const userResponse = await fetch(`/api/user?email=${email}`);
-              if (userResponse.ok) {
-                const userData = await userResponse.json();
-                return [email, userData] as [string, UserData];
+          // Create a map of all participants
+          const userMap: Record<string, Participant> = {};
+          sortedChats.forEach((chat: Chat) => {
+            chat.participants.forEach((participant: Participant) => {
+              if (participant.email !== session.user?.email) {
+                userMap[participant.email] = participant;
               }
-              console.error('Failed to fetch user data for:', email);
-              return [email, { 
-                _id: '', 
-                email: email,
-                name: email.split('@')[0]
-              }] as [string, UserData];
-            } catch (error) {
-              console.error('Error fetching user details for', email, ':', error);
-              return [email, { 
-                _id: '', 
-                email: email,
-                name: email.split('@')[0]
-              }] as [string, UserData];
-            }
+            });
           });
-
-          const userDetails = await Promise.all(userDetailsPromises);
-          const userMap = Object.fromEntries(userDetails);
+          
           setChatUsers(userMap);
         }
       } catch (error) {
@@ -114,16 +84,17 @@ export default function Messages() {
     }
   }, [session?.user?.email]);
 
-  const getLastMessage = (chat: ChatData) => {
-    if (chat.messages.length === 0) return 'No messages yet';
-    const lastMessage = chat.messages[chat.messages.length - 1];
-    return lastMessage.content;
+  const getOtherParticipant = (chat: Chat): Participant => {
+    const otherParticipant = chat.participants.find(p => p.email !== session?.user?.email);
+    return otherParticipant || { _id: '', email: '', name: 'Unknown User' };
   };
 
-  const getLastMessageTime = (chat: ChatData) => {
-    if (chat.messages.length === 0) return new Date(chat.createdAt);
-    const lastMessage = chat.messages[chat.messages.length - 1];
-    return new Date(lastMessage.timestamp);
+  const getLastMessage = (chat: Chat): string => {
+    return chat.lastMessage?.content || 'No messages yet';
+  };
+
+  const getLastMessageTime = (chat: Chat): Date => {
+    return new Date(chat.lastMessage?.timestamp || chat.updatedAt || chat.createdAt);
   };
 
   const formatTime = (date: Date) => {
@@ -134,13 +105,13 @@ export default function Messages() {
     if (days > 7) {
       return date.toLocaleDateString();
     } else if (days > 0) {
-      return `${days}d ago`;
+      return days + 'd ago';
     } else {
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
   };
 
-  const handleChatSelect = async (chat: ChatData) => {
+  const handleChatSelect = (chat: Chat) => {
     const otherParticipant = getOtherParticipant(chat);
     setSelectedRecipient(otherParticipant);
     setSelectedChat(chat);
@@ -178,14 +149,12 @@ export default function Messages() {
           <div className="overflow-y-auto h-[calc(100vh-5rem)]">
             {chats.map((chat) => {
               const otherParticipant = getOtherParticipant(chat);
-              const lastMessage = chat.messages[chat.messages.length - 1];
               return (
                 <div
-                  key={chat._id}
+                  key={chat.id}
                   onClick={() => handleChatSelect(chat)}
-                  className={`p-4 border-b border-purple-900/20 cursor-pointer hover:bg-purple-900/20 transition-colors flex items-center gap-3 ${
-                    selectedChat?._id === chat._id ? 'bg-purple-900/30' : ''
-                  }`}
+                  className={"p-4 border-b border-purple-900/20 cursor-pointer hover:bg-purple-900/20 transition-colors flex items-center gap-3 " +
+                    (selectedChat?.id === chat.id ? 'bg-purple-900/30' : '')}
                 >
                   <Avatar 
                     name={otherParticipant.name} 
@@ -202,7 +171,7 @@ export default function Messages() {
                       </span>
                     </div>
                     <p className="text-sm text-purple-300/70 truncate">
-                      {lastMessage ? lastMessage.content : 'No messages yet'}
+                      {getLastMessage(chat)}
                     </p>
                   </div>
                 </div>
@@ -214,7 +183,7 @@ export default function Messages() {
         {/* Chat Window or Empty State */}
         <div className="flex-1 bg-[#0A0F29]">
           {selectedRecipient ? (
-            <Chat
+            <ChatComponent
               recipient={selectedRecipient}
               onClose={() => {
                 setSelectedChat(null);

@@ -67,8 +67,8 @@ export default function SignUp() {
         }
       );
       
-      // Redirect to preferences page
-      router.push('/onboarding/preferences');
+      // Redirect to user type selection page
+      router.push('/onboarding/user-type');
     } catch (err) {
       setError('Failed to create account. Please try again.');
     } finally {
@@ -229,4 +229,4 @@ export default function SignUp() {
       </footer>
     </div>
   );
-} 
+}
