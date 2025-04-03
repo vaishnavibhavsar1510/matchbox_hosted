@@ -15,6 +15,13 @@ export interface UserData {
   location: string;
   bio: string;
   profileImage?: string;
+  // Host-specific fields
+  companyName?: string;
+  eventTypes?: string[];
+  experience?: string;
+  capacity?: string;
+  venueTypes?: string[];
+  userType?: 'host' | 'attendee';
   // Preference fields
   looking_for?: string;
   age_range?: {

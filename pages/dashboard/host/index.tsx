@@ -132,7 +132,17 @@ export default function HostDashboard() {
       <main className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-          {activeTab === 'hosting' && (
+          <div className="flex items-center space-x-4">
+            <Link
+              href="/dashboard/host/profile"
+              className="px-6 py-3 bg-gradient-to-r from-purple-600/20 to-indigo-600/20 text-purple-300 rounded-lg
+                       hover:from-purple-600/30 hover:to-indigo-600/30 transition-all duration-300 flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              Profile
+            </Link>
             <Link
               href="/events/create"
               className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg
@@ -140,7 +150,7 @@ export default function HostDashboard() {
             >
               Create New Event
             </Link>
-          )}
+          </div>
         </div>
 
         <div className="mb-8">
