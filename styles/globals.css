@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+  body {
+    @apply bg-aurora-light text-aurora-dark font-sans;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply py-2 px-4 rounded-md font-medium transition-all duration-200;
+  }
+  .btn-primary {
+    @apply bg-aurora-blue text-white hover:bg-opacity-90;
+  }
+  .btn-secondary {
+    @apply bg-aurora-teal text-white hover:bg-opacity-90;
+  }
+  .btn-accent {
+    @apply bg-aurora-orange text-white hover:bg-opacity-90;
+  }
+  .input-field {
+    @apply w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-aurora-teal;
+  }
+  .form-label {
+    @apply block text-sm font-medium text-aurora-dark mb-1;
+  }
+  .card {
+    @apply bg-white rounded-lg shadow-md p-6;
+  }
+  .aurora-gradient {
+    @apply bg-gradient-to-r from-aurora-blue via-aurora-teal to-aurora-light;
+  }
+}
+
+/* Aurora Vibes Animation for Signin/Signup Pages */
+.aurora-waves {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 200px;
+  background: linear-gradient(180deg, #6B46C1 0%, #9F7AEA 100%);
+  overflow: hidden;
+  z-index: -1;
+}
+
+.aurora-waves::before,
+.aurora-waves::after {
+  content: '';
+  position: absolute;
+  background: rgba(250, 245, 255, 0.4);
+  border-radius: 50% 50%;
+  width: 300px;
+  height: 300px;
+  top: -100px;
+  left: -100px;
+  transform-origin: center center;
+  animation: pulse 15s infinite linear;
+}
+
+.aurora-waves::after {
+  width: 500px;
+  height: 500px;
+  left: auto;
+  right: -200px;
+  animation-delay: 5s;
+  opacity: 0.3;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+} 
