@@ -61,6 +61,11 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      authorization: {
+        params: {
+          prompt: "select_account"
+        }
+      }
     }),
   ],
   session: {
@@ -72,62 +77,65 @@ export const authOptions: NextAuthOptions = {
     error: '/auth/error',
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async signIn({ user, account, profile }) {
+      if (account?.provider === "google") {
+        try {
+          const client = await clientPromise;
+          const db = client.db('matchbox');
+          
+          // Check if user exists
+          const existingUser = await db.collection('users').findOne({ email: user.email });
+          
+          if (!existingUser) {
+            // Create new user without userType
+            await db.collection('users').insertOne({
+              email: user.email,
+              name: user.name,
+              provider: 'google',
+              providerId: user.id,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            });
+            // Redirect to user type selection after sign up
+            return '/auth/user-type';
+          }
+          
+          // If user exists but doesn't have userType, redirect to selection
+          if (!existingUser.userType) {
+            return '/auth/user-type';
+          }
+          
+          // If user exists and has userType but no preferences, redirect to preferences
+          if (!existingUser.preferences) {
+            return '/preferences';
+          }
+          
+          // If user is complete, redirect to dashboard
+          return true;
+        } catch (error) {
+          console.error('Error during Google sign in:', error);
+          return false;
+        }
+      }
+      return true;
+    },
+    async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
+        if (account?.provider) {
+          token.provider = account.provider;
+        }
       }
       return token;
     },
     async session({ session, token }) {
-      if (session.user) {
+      if (session?.user) {
         session.user.id = token.id as string;
         session.user.email = token.email as string;
         session.user.name = token.name as string;
-      }
-      return session;
-    },
-    async signIn({ user, account }) {
-      try {
-        const client = await clientPromise;
-        const db = client.db();
-
-        // Check if user exists
-        const existingUser = await db.collection('users').findOne({ email: user.email });
-
-        if (!existingUser) {
-          // Create new user with host type
-          await db.collection('users').insertOne({
-            email: user.email,
-            name: user.name,
-            image: user.image,
-            userType: 'host',
-            interests: [],
-            createdAt: new Date(),
-            updatedAt: new Date()
-          });
-        } else if (!existingUser.userType) {
-          // Update existing user to be a host if userType is not set
-          await db.collection('users').updateOne(
-            { email: user.email },
-            { 
-              $set: { 
-                userType: 'host',
-                updatedAt: new Date()
-              }
-            }
-          );
-        }
-
-        return true;
-      } catch (error) {
-        console.error('Error in signIn callback:', error);
-        return false;
-      }
-    },
-    async session({ session }) {
-      if (session?.user?.email) {
+        
         try {
           const client = await clientPromise;
           const db = client.db();
